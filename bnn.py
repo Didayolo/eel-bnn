@@ -45,7 +45,6 @@ class BNN():
         X = X.T
         for i in range(len(self.W) - 1):
             X = self.act_func(np.dot(self.W[i], X))# + self.B[i])
-            #print(X)
         X = softmax(np.dot(self.W[-1], X)) # + self.B[-1] # softmax on last layer
         return X.T
 
@@ -57,15 +56,15 @@ class BNN():
         """
         Compute the loss value of the current network on the full batch
         Inputs: X: the batch - ndarray
-              : labels: the labels corresponding to the batch
+              : y_true: the labels corresponding to the batch
         Outputs: loss: the negative log-likelihood - float
                : accuracy: the ratio of examples that are well-classified - float
         """
         y_pred = self.predict_proba(X)
         loss = 0
         for i in range(len(X)):
-            loss -= np.log(y_pred[y_true[i], i])
-        loss = -np.sum(np.log(y_pred[y_true, range(len(y_true))])) / len(y_true)
+            loss -= np.log(y_pred[i, y_true[i]])
+        loss = -np.sum(np.log(y_pred[range(len(y_true)), y_true])) / len(y_true)
         return loss
 
 if __name__ == "__main__":
