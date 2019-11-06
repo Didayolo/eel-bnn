@@ -29,7 +29,7 @@ class BNN():
             B = []
             for i in range(np.size(layers) - 1):
                 # bias initialization
-                b = np.zeros((W[i].shape[0], 1))
+                b = np.random.choice([-1, 1], size=(W[i].shape[0], 1)) # binary bias
                 B.append(b)
         self.W = W
         self.B = B

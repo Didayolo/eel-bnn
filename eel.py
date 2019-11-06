@@ -48,11 +48,17 @@ class EEL():
         new_population = []
         for i in range(self.l): # offspring size
             model = self.population[i % self.n_estimators] # select an estimator from the current population
+            # weights variation
             W = model.W
             new_W = []
             for Wi in W:
                 new_W.append(mutation(Wi, p=p)) # mutation
-            candidate = self.init_estimator(W=new_W)
+            # bias variation
+            B = model.B
+            new_B = []
+            for Bi in B:
+                new_B.append(mutation(Bi, p=p)) # mutation
+            candidate = self.init_estimator(W=new_W, B=new_B)
             new_population.append(candidate)
         if keep:
             return new_population + self.population
@@ -71,7 +77,7 @@ class EEL():
         losses = np.array(losses)
         #print(np.sum(losses)) # generation's total loss # TODO: learning curve?
         best = losses.argsort()[:self.n_estimators+1] # select model with lowest losses
-        print('loss = {}'.format(np.sum(np.extract(best, losses)) / self.n_estimators)) # selected generation's loss
+        #print('loss = {}'.format(np.sum(np.extract(best, losses)) / self.n_estimators)) # selected generation's loss
         return list(np.extract(best, new_population)) # populations only of type ndarray to avoid too many castings?
 
     def fit(self, X, y, epochs=1, p=0.2, keep=False, batch_size=250, replace=True):
@@ -83,7 +89,7 @@ class EEL():
             # decrease mutation probability during training (learning rate)
             if p > 0.001:
                 p -= decrease / (i+1)
-                print('p = {}'.format(p))
+                #print('p = {}'.format(p))
             new_population = self.variation(p=p, keep=keep)
             self.population = self.selection(X, y, new_population, batch_size=batch_size, replace=replace)
             self.generation += 1
