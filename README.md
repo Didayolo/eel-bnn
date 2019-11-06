@@ -1,2 +1,1 @@
-# eel-bnn
-Evoluationary Ensemble Learning for Binary Neural Networks
+# Evoluationary Ensemble Learning (EEL) for Binary Neural Networks (BNN)
