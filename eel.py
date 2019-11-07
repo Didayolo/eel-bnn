@@ -16,6 +16,8 @@ class EEL():
 
             Method used by default: Post-Mortem Ensemble Creation.
 
+            :param layers: List of integers representing the size of each layer.
+                           The first is the input size and the last is the output size.
             :param n_estimators: Number of estimators of the ensemble method.
                                  This also the size of the parent population ("mu").
             :param l: The size of the offsprings during training ("lambda").
@@ -64,34 +66,60 @@ class EEL():
             return new_population + self.population
         return new_population
 
-    def selection(self, X, y, new_population, batch_size=250, replace=True):
+    def selection(self, X, y, new_population, batch_size=250, replace=True, verbose=False):
         """ Select best models from population.
+
+            :param X: np.ndarray of data
+            :param y: np.ndarray of target corresponding to data
+            :param new_population: The population to select individuals from.
+            :param batch_size: Size of sub-samples of data to feed models with.
+            :param replace: If True, sample batches with replacement.
+            :param verbose: If True, display information about loss.
         """
         losses = []
         for model in new_population:
             # TODO: boostrap? random batch?
             idx = np.random.choice(np.arange(len(X)), batch_size, replace=replace)
-            X_sampled = X[idx] # TODO: do this computation less times
+            X_sampled = X[idx] # TODO: this is not efficient
             y_sampled = y[idx]
             losses.append(model.loss(X_sampled, y_sampled))
         losses = np.array(losses)
-        #print(np.sum(losses)) # generation's total loss # TODO: learning curve?
         best = losses.argsort()[:self.n_estimators+1] # select model with lowest losses
-        #print('loss = {}'.format(np.sum(np.extract(best, losses)) / self.n_estimators)) # selected generation's loss
+        if verbose:
+            #print(np.sum(losses)) # generation's total loss # TODO: learning curve?
+            print('loss = {}'.format(np.sum(np.extract(best, losses)) / self.n_estimators)) # selected generation's loss
         return list(np.extract(best, new_population)) # populations only of type ndarray to avoid too many castings?
 
-    def fit(self, X, y, epochs=1, p=0.2, keep=False, batch_size=250, replace=True):
+    def fit(self, X, y, epochs=1, p=0.2, constant_p=True, keep=False, batch_size=250, replace=True, power_t=0.2, verbose=False):
         """ Evolve to a new generation of estimators.
+
+            :param X: Data
+            :param y: Target corresponding to data
+            :param epochs: Number of learning epochs.
+            :param p: Initial probability of mutation (kind of "learning rate") during variation phase.
+            :param constant_p: If True, keeps p constant (the learning rate).
+            :param keep: If True, the current population is kept during the variation phase.
+            :param batch_size: Size of sub-samples of data to feed models with during selection phase.
+            :param replace: If True, sample batches with replacement during selection phase.
+            :param power_t: Factor for invscaling learning rate.
+            :param verbose: If True, display information about loss and learning rate evolution.
         """
+        if not isinstance(X, np.ndarray):
+            X = np.array(X)
+        if not isinstance(y, np.ndarray):
+            y = np.array(y)
         # TODO: clean dynamic learning rate
-        decrease = 0.05
+        # adaptive: keeps the learning rate constant to ‘learning_rate_init’ as long as training loss keeps decreasing.
+        p_init = p # intial value of learning rate
         for i in range(epochs):
-            # decrease mutation probability during training (learning rate)
-            if p > 0.001:
-                p -= decrease / (i+1)
-                #print('p = {}'.format(p))
+            if not constant_p:
+                # decrease mutation probability during training (learning rate)
+                # invscaling:
+                p = p_init / pow(i+1, power_t)
+                if verbose:
+                    print('p = {}'.format(p))
             new_population = self.variation(p=p, keep=keep)
-            self.population = self.selection(X, y, new_population, batch_size=batch_size, replace=replace)
+            self.population = self.selection(X, y, new_population, batch_size=batch_size, replace=replace, verbose=verbose)
             self.generation += 1
 
     def predict_proba(self, X, soft=True, proba=True):
@@ -115,6 +143,11 @@ class EEL():
         return sum
 
     def predict(self, X, soft=True):
+        """ Predict X's target with a majority vote between (trained) estimators.
+
+            :param X: np.ndarray of data
+            :param soft: If True do a soft vote, else do a hard vote.
+        """
         y_pred = self.predict_proba(X, soft=soft, proba=False)
         return np.argmax(y_pred, axis=1) # take the most voted label
 
