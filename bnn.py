@@ -5,6 +5,17 @@ import matplotlib.pyplot as plt
 import math
 from activations import sigmoid, tanh, relu, softmax, sign
 
+from sklearn.metrics import log_loss
+
+def nll(y_true, y_pred):
+    """ Negative log-likelihood.
+    """
+    loss = 0
+    for i in range(len(X)):
+        loss -= np.log(y_pred[i, y_true[i]])
+    loss = np.sum(np.log(y_pred[range(len(y_true)), y_true])) / len(y_true)
+    return loss
+
 class BNN():
 
     def __init__(self, layers=[10, 10, 10], W=None, B=None):
@@ -54,21 +65,19 @@ class BNN():
         y_pred = self.predict_proba(X)
         return np.argmax(y_pred, axis=1)
 
-    def loss(self, X, y_true):
+    def loss(self, X, y_true, loss_function=None):
         """ Compute the loss value of the current network on the full batch
 
             :param X: Batch of data - np.ndarray
-            : y_true: Labels corresponding to the batch - np.ndarray
-            :return: The negative log-likelihood - float
+            :param y_true: Labels corresponding to the batch - np.ndarray
+            :param loss_function: TODO, nll, logloss
+            :return: Loss - float
         """
         y_pred = self.predict_proba(X)
-        loss = 0
-        for i in range(len(X)):
-            loss -= np.log(y_pred[i, y_true[i]])
-        loss = -np.sum(np.log(y_pred[range(len(y_true)), y_true])) / len(y_true)
-        return loss
+        return -log_loss(y_true, y_pred)
 
 if __name__ == "__main__":
+    print('testing...')
     model = BNN(layers=[2, 4])
     X = np.array([[1, 3], [0, -3]])
     y = np.array([0, 1])

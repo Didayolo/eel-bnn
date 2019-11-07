@@ -82,11 +82,11 @@ class EEL():
             idx = np.random.choice(np.arange(len(X)), batch_size, replace=replace)
             X_sampled = X[idx] # TODO: this is not efficient
             y_sampled = y[idx]
-            losses.append(model.loss(X_sampled, y_sampled))
+            losses.append(model.loss(X_sampled, y_sampled)) # compute losses
         losses = np.array(losses)
-        best = losses.argsort()[:self.n_estimators+1] # select model with lowest losses
+        best = losses.argsort()[:self.n_estimators+1] # select models with lowest losses
         if verbose:
-            #print(np.sum(losses)) # generation's total loss # TODO: learning curve?
+            #print('loss before selection = {}'.format(np.sum(losses) / len(new_population))) # generation's loss # TODO: learning curve?
             print('loss = {}'.format(np.sum(np.extract(best, losses)) / self.n_estimators)) # selected generation's loss
         return list(np.extract(best, new_population)) # populations only of type ndarray to avoid too many castings?
 
@@ -152,9 +152,10 @@ class EEL():
         return np.argmax(y_pred, axis=1) # take the most voted label
 
 if __name__ == "__main__":
-    model = EEL(layers=[1, 2], n_estimators=2)
-    X = np.array([[-10], [10]])
-    y = np.array([0, 1])
+    print('testing...')
+    model = EEL(layers=[1, 2], n_estimators=1, l=5)
+    X = np.array([[-10], [-5], [-12], [10], [1], [4]])
+    y = np.array([0, 0, 0, 1, 1, 1])
     print('input')
     print(X)
     print('labels')
@@ -162,7 +163,15 @@ if __name__ == "__main__":
     print('output')
     print(model.predict_proba(X))
     print(model.predict(X))
-    model.fit(X, y, epochs=500, p=0.5, batch_size=2, replace=False)
+    print('training...')
+    model.fit(X, y, epochs=500, p=0.01, batch_size=6, replace=False, verbose=False)
     print('output')
     print(model.predict_proba(X))
     print(model.predict(X))
+    print('validation labels')
+    X_test = np.array([[-8], [-6], [13], [3]])
+    y_test = np.array([0, 0, 1, 1])
+    print(y_test)
+    print('validation output')
+    print(model.predict(X_test))
+    print(model.predict(X_test, soft=False))

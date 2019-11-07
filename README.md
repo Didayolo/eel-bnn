@@ -1,5 +1,5 @@
 # Evolutionary Ensemble Learning (EEL) for
-## Binary Neural Networks (BNN)
+# Binary Neural Networks (BNN)
 
 
 **Why?**
