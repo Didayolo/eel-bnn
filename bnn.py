@@ -11,9 +11,9 @@ def nll(y_true, y_pred):
     """ Negative log-likelihood.
     """
     loss = 0
-    for i in range(len(X)):
+    for i in range(len(y_true)):
         loss -= np.log(y_pred[i, y_true[i]])
-    loss = np.sum(np.log(y_pred[range(len(y_true)), y_true])) / len(y_true)
+    loss = -np.sum(np.log(y_pred[range(len(y_true)), y_true])) / len(y_true)
     return loss
 
 class BNN():
@@ -70,11 +70,17 @@ class BNN():
 
             :param X: Batch of data - np.ndarray
             :param y_true: Labels corresponding to the batch - np.ndarray
-            :param loss_function: TODO, nll, logloss
+            :param loss_function: None for logloss or 'nll'
             :return: Loss - float
         """
         y_pred = self.predict_proba(X)
-        return -log_loss(y_true, y_pred)
+        if loss_function is None:
+            loss = log_loss(y_true, y_pred)
+        elif loss_function == 'nll':
+            loss = nll(y_true, y_pred)
+        else:
+            raise Exception('Unknown loss function: {}'.format(loss_function))
+        return loss
 
 if __name__ == "__main__":
     print('testing...')

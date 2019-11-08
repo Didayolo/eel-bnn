@@ -3,6 +3,7 @@
 from bnn import BNN
 import numpy as np
 from activations import softmax
+import matplotlib.pyplot as plt
 
 def mutation(arr, p=0.2):
     """ Random mutations of array arr with probability p.
@@ -27,6 +28,7 @@ class EEL():
         self.n_estimators = n_estimators
         self.output_size = layers[-1]
         self.generation = 0
+        self.history = [] # loss history
         if l is None:
             l = n_estimators * 2
         if l < n_estimators:
@@ -66,7 +68,7 @@ class EEL():
             return new_population + self.population
         return new_population
 
-    def selection(self, X, y, new_population, batch_size=250, replace=True, verbose=False):
+    def selection(self, X, y, new_population, batch_size=250, replace=True, force_diversity=False):
         """ Select best models from population.
 
             :param X: np.ndarray of data
@@ -74,7 +76,7 @@ class EEL():
             :param new_population: The population to select individuals from.
             :param batch_size: Size of sub-samples of data to feed models with.
             :param replace: If True, sample batches with replacement.
-            :param verbose: If True, display information about loss.
+            :param force_diversity: If True, select at least one child of each individual.
         """
         losses = []
         for model in new_population:
@@ -84,13 +86,20 @@ class EEL():
             y_sampled = y[idx]
             losses.append(model.loss(X_sampled, y_sampled)) # compute losses
         losses = np.array(losses)
-        best = losses.argsort()[:self.n_estimators+1] # select models with lowest losses
-        if verbose:
-            #print('loss before selection = {}'.format(np.sum(losses) / len(new_population))) # generation's loss # TODO: learning curve?
-            print('loss = {}'.format(np.sum(np.extract(best, losses)) / self.n_estimators)) # selected generation's loss
-        return list(np.extract(best, new_population)) # populations only of type ndarray to avoid too many castings?
+        if force_diversity:
+            complement = np.ones(self.n_estimators - (len(new_population) % self.n_estimators)) * 10 # to be able to reshape
+            losses = np.concatenate((losses, complement))
+            n = len(losses)
+            losses = losses.reshape((-1, self.n_estimators)) # each column now represents the children of an individual
+            r = np.arange(n).reshape(losses.shape) # to be able to track indexes despite of the reshape
+            best = [r[j, i] for i, j in enumerate(losses.argmin(axis=0))] # get the original index of the min value of each column
+        else:
+            best = losses.argsort()[:self.n_estimators] # select models with lowest losses
+        self.history.append(np.sum(np.extract(best, losses)) / self.n_estimators) # save selected generation's loss
+        new_population = list(np.take(new_population, best)) # populations only of type ndarray to avoid too many castings?
+        return new_population
 
-    def fit(self, X, y, epochs=1, p=0.2, constant_p=True, keep=False, batch_size=250, replace=True, power_t=0.2, verbose=False):
+    def fit(self, X, y, epochs=1, p=0.2, constant_p=True, keep=False, batch_size=250, replace=True, power_t=0.2, force_diversity=False, verbose=False):
         """ Evolve to a new generation of estimators.
 
             :param X: Data
@@ -102,14 +111,19 @@ class EEL():
             :param batch_size: Size of sub-samples of data to feed models with during selection phase.
             :param replace: If True, sample batches with replacement during selection phase.
             :param power_t: Factor for invscaling learning rate.
-            :param verbose: If True, display information about loss and learning rate evolution.
+            :param force_diversity: If True, select at least one child of each individual.
+            :param verbose: If True, display information about epochs, loss and learning rate evolution.
         """
+        # idea for dynamic learning rate:
+        # adaptive: keeps the learning rate constant to ‘learning_rate_init’ as long as training loss keeps decreasing
+        if force_diversity and (self.n_estimators == 1):
+            force_diversity = False # all variations are made from the same parent model
+        if force_diversity and keep:
+            print('WARNING: force_diversity and keep arguments are currently not compatible.')
         if not isinstance(X, np.ndarray):
             X = np.array(X)
         if not isinstance(y, np.ndarray):
             y = np.array(y)
-        # TODO: clean dynamic learning rate
-        # adaptive: keeps the learning rate constant to ‘learning_rate_init’ as long as training loss keeps decreasing.
         p_init = p # intial value of learning rate
         for i in range(epochs):
             if not constant_p:
@@ -119,7 +133,7 @@ class EEL():
                 if verbose:
                     print('p = {}'.format(p))
             new_population = self.variation(p=p, keep=keep)
-            self.population = self.selection(X, y, new_population, batch_size=batch_size, replace=replace, verbose=verbose)
+            self.population = self.selection(X, y, new_population, batch_size=batch_size, replace=replace, force_diversity=force_diversity)
             self.generation += 1
 
     def predict_proba(self, X, soft=True, proba=True):
@@ -151,6 +165,14 @@ class EEL():
         y_pred = self.predict_proba(X, soft=soft, proba=False)
         return np.argmax(y_pred, axis=1) # take the most voted label
 
+    def show_learning_curve(self):
+        x = range(len(self.history))
+        y = self.history
+        plt.plot(x, y)
+        plt.xlabel('epochs')
+        plt.ylabel('mean loss')
+        plt.show()
+
 if __name__ == "__main__":
     print('testing...')
     model = EEL(layers=[1, 2], n_estimators=1, l=5)
@@ -164,7 +186,7 @@ if __name__ == "__main__":
     print(model.predict_proba(X))
     print(model.predict(X))
     print('training...')
-    model.fit(X, y, epochs=500, p=0.01, batch_size=6, replace=False, verbose=False)
+    model.fit(X, y, epochs=500, p=0.01, batch_size=6, replace=False, force_diversity=True, verbose=False)
     print('output')
     print(model.predict_proba(X))
     print(model.predict(X))
