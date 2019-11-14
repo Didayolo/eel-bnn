@@ -80,7 +80,7 @@ class EEL():
             return new_population + self.population
         return new_population
 
-    def selection(self, X, y, new_population, batch_size=250, replace=True, force_diversity=False):
+    def selection(self, X, y, new_population, batch_size=250, replace=True, force_diversity=False, loss_function=None):
         """ Select best models from population.
 
             :param X: np.ndarray of data
@@ -89,15 +89,16 @@ class EEL():
             :param batch_size: Size of sub-samples of data to feed models with.
             :param replace: If True, sample batches with replacement.
             :param force_diversity: If True, select at least one child of each individual.
+            :param loss_function: Name of the loss function to call from loss method from BNN (None for logloss or 'nll').
         """
         losses = []
         for model in new_population:
             # TODO: boostrap? random batch?
             if batch_size: # batch_size is not None, random sampling
                 X_sampled, y_sampled = sample_X_y_batch(X, y, batch_size=batch_size, replace=replace)
-                losses.append(model.loss(X_sampled, y_sampled)) # compute losses
+                losses.append(model.loss(X_sampled, y_sampled, loss_function=loss_function)) # compute losses
             else: # evaluate all models with all data
-                losses.append(model.loss(X, y))
+                losses.append(model.loss(X, y, loss_function=loss_function))
         losses = np.array(losses)
         if force_diversity:
             complement = np.ones(self.n_estimators - (len(new_population) % self.n_estimators)) * 10 # to be able to reshape
@@ -113,7 +114,7 @@ class EEL():
         return new_population
 
     def fit(self, X, y, epochs=1, p=0.2, constant_p=True, keep=False, batch_size=250,
-            multi_batch=False, replace=True, power_t=0.2, force_diversity=False, verbose=False):
+            multi_batch=False, random_batch=True, replace=True, power_t=0.2, force_diversity=False, loss_function=None, verbose=False):
         """ Evolve to a new generation of estimators.
 
             :param X: Data
@@ -123,10 +124,12 @@ class EEL():
             :param constant_p: If True, keeps p constant (the learning rate).
             :param keep: If True, the current population is kept during the variation phase.
             :param batch_size: Size of sub-samples of data to feed models with during selection phase.
-            :param multi_batch: If True, use a different random batch for each estimator evaluation.
-            :param replace: If True, sample batches with replacement during selection phase.
+            :param multi_batch: If True, use a different batch for each estimator evaluation.
+            :param random_batch: If True, batches are sampled randomly.
+            :param replace: If True, sample random batches with replacement during selection phase.
             :param power_t: Factor for invscaling learning rate.
             :param force_diversity: If True, select at least one child of each individual.
+            :param loss_function: Name of the loss function to call from loss method from BNN (None for logloss or 'nll').
             :param verbose: If True, display information about epochs, loss and learning rate evolution.
         """
         # idea for dynamic learning rate:
@@ -135,6 +138,8 @@ class EEL():
             force_diversity = False # all variations are made from the same parent model
         if force_diversity and keep:
             print('WARNING: force_diversity and keep arguments are currently not compatible.')
+        if multi_batch and (not random_batch):
+            print('WARNING: multi_batch and (not) random_batch arguments are currently not compatible.')
         if not isinstance(X, np.ndarray):
             X = np.array(X)
         if not isinstance(y, np.ndarray):
@@ -152,8 +157,17 @@ class EEL():
                 # the batch sampling is done in selection method
                 self.population = self.selection(X, y, new_population, batch_size=batch_size, replace=replace, force_diversity=force_diversity)
             else:
-                X_sampled, y_sampled = sample_X_y_batch(X, y, batch_size=batch_size, replace=replace) # could also go over data
-                self.population = self.selection(X_sampled, y_sampled, new_population, batch_size=None, force_diversity=force_diversity)
+                if random_batch:
+                    X_sampled, y_sampled = sample_X_y_batch(X, y, batch_size=batch_size, replace=replace) # could also go over data
+                else: # slice batch
+                    # supposed to be faster but it is not
+                    num_examples = len(X)
+                    start = batch_size * i % num_examples
+                    end = min(num_examples, batch_size * (i+1) % num_examples)
+                    if start > end:
+                        end = num_examples
+                    X_sampled, y_sampled = X[start:end], y[start:end]
+                self.population = self.selection(X_sampled, y_sampled, new_population, batch_size=None, force_diversity=force_diversity, loss_function=loss_function)
             self.generation += 1
 
     def predict_proba(self, X, soft=True, proba=True):

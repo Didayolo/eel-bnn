@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import math
 from activations import sigmoid, tanh, relu, softmax, sign
 
+# log loss
 from sklearn.metrics import log_loss
 
 def nll(y_true, y_pred):
@@ -34,13 +35,13 @@ class BNN():
             for i in range(np.size(layers) - 1):
                 # weights initialization
                 w = np.random.choice([-1, 1], size=(layers[i + 1], layers[i])) # binary weights
-                W.append(w)
+                W.append(w.astype(np.int8))
         if B is None:
             B = []
             for i in range(np.size(layers) - 1):
                 # bias initialization
                 b = np.random.choice([-1, 1], size=(W[i].shape[0], 1)) # binary bias
-                B.append(b)
+                B.append(b.astype(np.int8))
         self.W = W
         self.B = B
 
@@ -84,6 +85,15 @@ class BNN():
 
 if __name__ == "__main__":
     print('testing...')
+
+    print('log loss')
+    y_true = np.array([[1,0,0,0],
+                   [0,0,0,1]])
+    y_pred = np.array([[0.25,0.25,0.25,0.25],
+                        [0.01,0.01,0.01,0.97]])
+    print(log_loss(y_true, y_pred))
+    print(_log_loss(y_true, y_pred))
+
     model = BNN(layers=[2, 4])
     X = np.array([[1, 3], [0, -3]])
     y = np.array([0, 1])
