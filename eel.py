@@ -109,7 +109,7 @@ class EEL():
             best = [r[j, i] for i, j in enumerate(losses.argmin(axis=0))] # get the original index of the min value of each column
         else:
             best = losses.argsort()[:self.n_estimators] # select models with lowest losses
-        self.history.append(np.sum(np.extract(best, losses)) / self.n_estimators) # save selected generation's loss
+        self.history.append(np.sum(np.take(losses, best)) / self.n_estimators) # save selected generation's loss
         new_population = list(np.take(new_population, best)) # populations only of type ndarray to avoid too many castings?
         return new_population
 
@@ -138,8 +138,8 @@ class EEL():
             force_diversity = False # all variations are made from the same parent model
         if force_diversity and keep:
             print('WARNING: force_diversity and keep arguments are currently not compatible.')
-        if multi_batch and (not random_batch):
-            print('WARNING: multi_batch and (not) random_batch arguments are currently not compatible.')
+        if multi_batch:
+            print('WARNING: random_batch argument is currently useless in multi_batch mode.')
         if not isinstance(X, np.ndarray):
             X = np.array(X)
         if not isinstance(y, np.ndarray):
