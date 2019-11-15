@@ -4,6 +4,7 @@ from bnn import BNN
 import numpy as np
 from activations import softmax
 import matplotlib.pyplot as plt
+from time import time
 
 def mutation(arr, p=0.2):
     """ Random mutations of array arr with probability p.
@@ -41,6 +42,7 @@ class EEL():
         self.output_size = layers[-1]
         self.generation = 0
         self.history = [] # loss history
+        self.p_history = [] # learning rate history
         if l is None:
             l = n_estimators * 2
         if l < n_estimators:
@@ -80,7 +82,7 @@ class EEL():
             return new_population + self.population
         return new_population
 
-    def selection(self, X, y, new_population, batch_size=250, replace=True, force_diversity=False, loss_function=None):
+    def selection(self, X, y, new_population, batch_size=250, replace=True, force_diversity=False, loss_function='log_loss', labels=None):
         """ Select best models from population.
 
             :param X: np.ndarray of data
@@ -89,16 +91,16 @@ class EEL():
             :param batch_size: Size of sub-samples of data to feed models with.
             :param replace: If True, sample batches with replacement.
             :param force_diversity: If True, select at least one child of each individual.
-            :param loss_function: Name of the loss function to call from loss method from BNN (None for logloss or 'nll').
+            :param loss_function: Name of the loss function to call from loss method from BNN ('log_loss' or 'nll').
         """
         losses = []
         for model in new_population:
             # TODO: boostrap? random batch?
             if batch_size: # batch_size is not None, random sampling
                 X_sampled, y_sampled = sample_X_y_batch(X, y, batch_size=batch_size, replace=replace)
-                losses.append(model.loss(X_sampled, y_sampled, loss_function=loss_function)) # compute losses
+                losses.append(model.loss(X_sampled, y_sampled, loss_function=loss_function, labels=labels)) # compute losses
             else: # evaluate all models with all data
-                losses.append(model.loss(X, y, loss_function=loss_function))
+                losses.append(model.loss(X, y, loss_function=loss_function, labels=labels))
         losses = np.array(losses)
         if force_diversity:
             complement = np.ones(self.n_estimators - (len(new_population) % self.n_estimators)) * 10 # to be able to reshape
@@ -114,7 +116,7 @@ class EEL():
         return new_population
 
     def fit(self, X, y, epochs=1, p=0.2, constant_p=True, keep=False, batch_size=250,
-            multi_batch=False, random_batch=True, replace=True, power_t=0.2, force_diversity=False, loss_function=None, verbose=False):
+            multi_batch=False, random_batch=True, replace=True, power_t=0.2, force_diversity=False, loss_function='log_loss', verbose=False):
         """ Evolve to a new generation of estimators.
 
             :param X: Data
@@ -132,6 +134,8 @@ class EEL():
             :param loss_function: Name of the loss function to call from loss method from BNN (None for logloss or 'nll').
             :param verbose: If True, display information about epochs, loss and learning rate evolution.
         """
+        t0 = time()
+        labels = np.unique(y) # TODO: tmp
         # idea for dynamic learning rate:
         # adaptive: keeps the learning rate constant to ‘learning_rate_init’ as long as training loss keeps decreasing
         if force_diversity and (self.n_estimators == 1):
@@ -146,16 +150,14 @@ class EEL():
             y = np.array(y)
         p_init = p # intial value of learning rate
         for i in range(epochs):
-            if not constant_p:
-                # decrease mutation probability during training (learning rate)
+            if not constant_p: # decrease mutation probability during training (learning rate)
                 # invscaling:
                 p = p_init / pow(i+1, power_t)
-                if verbose:
-                    print('p = {}'.format(p)) # TODO: history
+            self.p_history.append(p) # append history in any case
             new_population = self.variation(p=p, keep=keep)
             if multi_batch:
                 # the batch sampling is done in selection method
-                self.population = self.selection(X, y, new_population, batch_size=batch_size, replace=replace, force_diversity=force_diversity)
+                self.population = self.selection(X, y, new_population, batch_size=batch_size, replace=replace, force_diversity=force_diversity, loss_function=loss_function, labels=labels)
             else:
                 if random_batch:
                     X_sampled, y_sampled = sample_X_y_batch(X, y, batch_size=batch_size, replace=replace) # could also go over data
@@ -167,8 +169,13 @@ class EEL():
                     if start > end:
                         end = num_examples
                     X_sampled, y_sampled = X[start:end], y[start:end]
-                self.population = self.selection(X_sampled, y_sampled, new_population, batch_size=None, force_diversity=force_diversity, loss_function=loss_function)
+                self.population = self.selection(X_sampled, y_sampled, new_population, batch_size=None, force_diversity=force_diversity, loss_function=loss_function, labels=labels)
             self.generation += 1
+        t1 = time()
+        if verbose:
+            print('Elapsed time: {}'.format(t1 - t0))
+            self.show_learning_curve()
+            self.show_p_curve()
 
     def predict_proba(self, X, soft=True, proba=True):
         """ Population's members vote together to predict y from X.
@@ -206,6 +213,16 @@ class EEL():
         plt.xlabel('epochs')
         plt.ylabel('mean loss')
         plt.show()
+        return y
+
+    def show_p_curve(self):
+        x = range(len(self.p_history))
+        y = self.p_history
+        plt.plot(x, y)
+        plt.xlabel('epochs')
+        plt.ylabel('mutation probability')
+        plt.show()
+        return y
 
 if __name__ == "__main__":
     print('testing...')
@@ -220,7 +237,7 @@ if __name__ == "__main__":
     print(model.predict_proba(X))
     print(model.predict(X))
     print('training...')
-    model.fit(X, y, epochs=500, p=0.01, batch_size=6, replace=False, force_diversity=True, verbose=False)
+    model.fit(X, y, epochs=100, p=0.01, batch_size=6, replace=False, force_diversity=True, verbose=False)
     print('output')
     print(model.predict_proba(X))
     print(model.predict(X))

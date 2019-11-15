@@ -8,6 +8,8 @@ from activations import sigmoid, tanh, relu, softmax, sign
 # log loss
 from sklearn.metrics import log_loss
 
+from sklearn.metrics import hinge_loss
+
 def nll(y_true, y_pred):
     """ Negative log-likelihood.
     """
@@ -66,7 +68,7 @@ class BNN():
         y_pred = self.predict_proba(X)
         return np.argmax(y_pred, axis=1)
 
-    def loss(self, X, y_true, loss_function=None):
+    def loss(self, X, y_true, loss_function='log_loss', labels=None):
         """ Compute the loss value of the current network on the full batch
 
             :param X: Batch of data - np.ndarray
@@ -75,8 +77,10 @@ class BNN():
             :return: Loss - float
         """
         y_pred = self.predict_proba(X)
-        if loss_function is None:
-            loss = log_loss(y_true, y_pred)
+        if loss_function == 'log_loss':
+            loss = log_loss(y_true, y_pred, labels=labels)
+        elif loss_function == 'hinge_loss':
+            loss = hinge_loss(y_true, y_pred, labels=labels)
         elif loss_function == 'nll':
             loss = nll(y_true, y_pred)
         else:
@@ -87,12 +91,9 @@ if __name__ == "__main__":
     print('testing...')
 
     print('log loss')
-    y_true = np.array([[1,0,0,0],
-                   [0,0,0,1]])
-    y_pred = np.array([[0.25,0.25,0.25,0.25],
-                        [0.01,0.01,0.01,0.97]])
+    y_true = np.array([[1,0,0,0], [0,0,0,1]])
+    y_pred = np.array([[0.25,0.25,0.25,0.25], [0.01,0.01,0.01,0.97]])
     print(log_loss(y_true, y_pred))
-    print(_log_loss(y_true, y_pred))
 
     model = BNN(layers=[2, 4])
     X = np.array([[1, 3], [0, -3]])
@@ -111,4 +112,4 @@ if __name__ == "__main__":
     print(model.predict_proba(X))
     print(model.predict(X))
     print('loss')
-    print(model.loss(X, y))
+    print(model.loss(X, y, labels=[0, 1, 2, 3]))
